@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Leaflet Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.0.3/dist/leaflet.css"/>
+    <link rel="stylesheet" href="css/style.css"/>
+
+</head>
+<body>
+
+    <script src="https://unpkg.com/leaflet@1.0.3/dist/leaflet.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+
+    <div id="map">
+    </div>
+
+    <div class='info'>
+        <h1>Blood Lead Level in Philadelphia</h1>
+    </div>
+
+    <script>
+        // set tile layer
+        var map = L.map('map', {center: [39.981192, -75.125499], zoom: 12});
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+        
+        var mbAttr = 'Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, ' +
+                'Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+            mbUrl = 'https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token=pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw';
+            
+        var grayscale   = L.tileLayer(mbUrl, {id: 'mapbox/light-v9', tileSize: 512, zoomOffset: -1, attribution: mbAttr}),
+            streets  = L.tileLayer(mbUrl, {id: 'mapbox/streets-v11', tileSize: 512, zoomOffset: -1, attribution: mbAttr});
+                   
+        map.doubleClickZoom.disable();
+
+        // Create an Empty Popup
+        var popup = L.popup();
+       
+        // Listen for a click event on the Map element
+        map.on('click', onMapClick);
+        
+        var baseMaps = {
+            "grayscale": grayscale,
+            "streets": streets
+        };
+
+        var temple = L.marker([39.981192, -75.155399]);
+        var drexel = L.marker([39.957352834066796, -75.18939693143933]);
+        var penn = L.marker([39.95285548473699, -75.19309508637147]);
+
+        var universities = L.layerGroup([temple, drexel, penn]);
+        var universityLayer = {
+            "Phily University": universities
+        };
+
+        // load GeoJSON from an external file
+		var neighborhoodsLayer = null;
+		$.getJSON("data/blood_lead.geojson",function(data){
+		    neighborhoodsLayer = L.geoJson(data, {
+		    	style: styleFunc,
+		    	onEachFeature: onEachFeature
+            }).addTo(map);
+        var overlayLayer = {
+            "blood_lead_level": neighborhoodsLayer,
+            "Phily University": universities
+        };            
+
+       L.control.layers(baseMaps, overlayLayer).addTo(map);
+ 
+		});
+
+
+
+        var legend = L.control({position: 'bottomright'});
+
+        legend.onAdd = function (map) {
+            var div = L.DomUtil.create('div', 'legend');
+            div.innerHTML += '<b>Blood Lead Level</b><br />';
+            div.innerHTML += "<b>by census tract<br />";
+            div.innerHTML += '<hr>';
+			div.innerHTML += '<i style="background: #02818a"></i><p>60+</p>';
+			div.innerHTML += '<i style="background: #67a9cf"></i><p>40-60</p>';
+			div.innerHTML += '<i style="background: #bdc9e1"></i><p>20-40</p>';
+			div.innerHTML += '<i style="background: #f6eff7"></i><p>0-20</p>';
+            div.innerHTML += '<hr>';
+            div.innerHTML += '<i style="background: #BFBCBB"></i><p>No Data</p>';
+            return div;
+        };
+
+        legend.addTo(map);
+
+        L.control.scale({position: 'bottomleft'}).addTo(map);
+
+///////////////////////////////////////////////////////////////////
+// functions
+
+        // Write function to set Properties of the Popup
+        function onMapClick(e) {
+            popup
+                .setLatLng(e.latlng)
+                .setContent("You clicked the map at " + e.latlng.toString())
+                .openOn(map);
+        }        
+
+        // fills color and borders
+        function styleFunc(feature) {
+            return {
+                fillColor: setColorFunc(feature.properties.num_bll_5p),
+                fillOpacity: 0.9,
+                weight: 0.5,
+                opacity: 0.7,
+                color: '#171717',
+                dashArray: ''
+            };
+        }
+
+        // controls color ramp
+        function setColorFunc(density){
+            return density > 60 ? '#02818a' :
+                density > 40 ? '#67a9cf' :
+                density > 20 ? '#bdc9e1' :
+                density > 0 ? '#f6eff7' :
+                                '#BFBCBB';
+        };
+
+        //applies event handling to each feature in the choropleth layer
+        function onEachFeature(feature, layer){
+			layer.on({
+				mouseover: highlightFeature,
+				mouseout: resetHighlight,
+				click: zoomFeature
+			});
+			layer.bindPopup('Blood lead level: '+feature.properties.num_bll_5p);
+		}
+
+        // Now we’ll use the onEachFeature option to add the listeners on our state layers
+        function highlightFeature(e){
+            var layer = e.target;
+
+            layer.setStyle({
+                weight: 4,
+                color: 'orange',
+                dashArray: '',
+                fillOpacity: 0.7
+            });
+            // for different web browsers
+            if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
+                layer.bringToFront();
+            }
+        }
+
+        function resetHighlight(e) {
+            neighborhoodsLayer.resetStyle(e.target);
+        }  
+
+        function zoomFeature(e){
+            console.log(e.target.getBounds());
+            map.fitBounds(e.target.getBounds().pad(1.5));
+        }
+
+    </script>
+</body>
+</html>
